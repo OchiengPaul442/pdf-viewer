@@ -165,10 +165,10 @@ export default function AnnotationLayer({
   const handleSelect = useCallback(
     (id: string) => {
       if (activeTool === "select") {
-        setSelectedAnnotation(id);
+        setSelectedAnnotation(selectedAnnotationId === id ? null : id);
       }
     },
-    [activeTool, setSelectedAnnotation],
+    [activeTool, selectedAnnotationId, setSelectedAnnotation],
   );
 
   const handleDragEnd = useCallback(

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useStore } from "zustand";
 import { usePdfStore } from "@/store/pdf-store";
 import type { ToolType } from "@/types/annotations";
 import {
@@ -84,13 +85,24 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
     setPdfData,
   } = usePdfStore();
 
+  const canUndo = useStore(
+    usePdfStore.temporal,
+    (state) => state.pastStates.length > 0,
+  );
+  const canRedo = useStore(
+    usePdfStore.temporal,
+    (state) => state.futureStates.length > 0,
+  );
+
   const store = usePdfStore;
 
   const handleUndo = () => {
+    if (!canUndo) return;
     store.temporal.getState().undo();
   };
 
   const handleRedo = () => {
+    if (!canRedo) return;
     store.temporal.getState().redo();
   };
 
@@ -196,14 +208,16 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
       <button
         onClick={handleUndo}
         title="Undo (Ctrl+Z)"
-        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+        disabled={!canUndo}
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
       >
         <Undo2 size={18} />
       </button>
       <button
         onClick={handleRedo}
         title="Redo (Ctrl+Y)"
-        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+        disabled={!canRedo}
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
       >
         <Redo2 size={18} />
       </button>

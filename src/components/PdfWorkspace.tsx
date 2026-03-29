@@ -157,27 +157,36 @@ export default function PdfWorkspace() {
 
   const handlePrint = useCallback(() => {
     if (!pdfData) return;
-    // Export and print
+    const printBlob = (bytes: Uint8Array) => {
+      const buffer = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      );
+      const blob = new Blob([buffer as ArrayBuffer], {
+        type: "application/pdf",
+      });
+      const url = URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      iframe.onload = () => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+          URL.revokeObjectURL(url);
+        }, 1000);
+      };
+    };
+
+    // Try to print the annotated PDF first, then fall back to the original
+    // document so printing still works if the editor cannot reserialize a PDF.
     exportPdf({ pdfData, annotations, pageOrder, watermark, scale })
-      .then((data) => {
-        const blob = new Blob([new Uint8Array(data)], {
-          type: "application/pdf",
-        });
-        const url = URL.createObjectURL(blob);
-        const iframe = document.createElement("iframe");
-        iframe.style.display = "none";
-        iframe.src = url;
-        document.body.appendChild(iframe);
-        iframe.onload = () => {
-          iframe.contentWindow?.print();
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-            URL.revokeObjectURL(url);
-          }, 1000);
-        };
-      })
+      .then(printBlob)
       .catch((err) => {
-        console.error("Print failed:", err);
+        console.error("Print failed, falling back to original PDF:", err);
+        printBlob(pdfData);
       });
   }, [pdfData, annotations, pageOrder, watermark, scale]);
 

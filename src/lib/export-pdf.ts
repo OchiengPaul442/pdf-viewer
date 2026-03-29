@@ -41,13 +41,34 @@ interface ExportOptions {
   scale: number;
 }
 
+function normalizePdfData(pdfData: Uint8Array) {
+  const header = [0x25, 0x50, 0x44, 0x46, 0x2d];
+
+  for (let i = 0; i <= Math.max(0, pdfData.length - header.length); i++) {
+    let matches = true;
+    for (let j = 0; j < header.length; j++) {
+      if (pdfData[i + j] !== header[j]) {
+        matches = false;
+        break;
+      }
+    }
+
+    if (matches) {
+      return i === 0 ? pdfData : pdfData.slice(i);
+    }
+  }
+
+  return pdfData;
+}
+
 export async function exportPdf({
   pdfData,
   annotations,
   pageOrder,
   watermark,
 }: ExportOptions): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.load(pdfData);
+  const normalizedPdfData = normalizePdfData(pdfData);
+  const pdfDoc = await PDFDocument.load(normalizedPdfData);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const courier = await pdfDoc.embedFont(StandardFonts.Courier);
