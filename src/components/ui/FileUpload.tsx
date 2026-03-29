@@ -1,14 +1,9 @@
 "use client";
 
 import { useCallback } from "react";
+import Image from "next/image";
 import { usePdfStore } from "@/store/pdf-store";
-import {
-  ArrowUpRight,
-  FileSignature,
-  ShieldCheck,
-  Sparkles,
-  Upload,
-} from "lucide-react";
+import { ArrowUpRight, FileSignature, ShieldCheck, Upload } from "lucide-react";
 
 export default function FileUpload() {
   const { setPdfData } = usePdfStore();
@@ -43,11 +38,18 @@ export default function FileUpload() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.15),_transparent_35%),linear-gradient(180deg,_#0f172a_0%,_#111827_40%,_#020617_100%)] text-slate-100">
+    <div className="min-h-screen flex flex-col bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.15),transparent_35%),linear-gradient(180deg,#0f172a_0%,#111827_40%,#020617_100%)] text-slate-100">
       <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-10 px-6 py-8 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-14 lg:px-10">
         <section className="space-y-6">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 shadow-lg shadow-slate-950/20 backdrop-blur">
-            <Sparkles size={16} className="text-sky-300" />
+            <Image
+              src="/logos/logo.webp"
+              alt="PaperPilot logo"
+              width={20}
+              height={20}
+              className="h-5 w-5 rounded-sm object-contain"
+              priority
+            />
             PaperPilot
           </div>
 
@@ -110,11 +112,11 @@ export default function FileUpload() {
         </section>
 
         <section className="relative">
-          <div className="absolute inset-0 -z-10 rounded-[2rem] bg-gradient-to-br from-sky-400/20 via-cyan-400/10 to-transparent blur-3xl" />
+          <div className="absolute inset-0 -z-10 rounded-4xl bg-linear-to-br from-sky-400/20 via-cyan-400/10 to-transparent blur-3xl" />
           <div
             onDrop={handleDrop}
             onDragOver={(e) => e.preventDefault()}
-            className="rounded-[2rem] border border-white/10 bg-slate-950/70 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur-xl sm:p-8"
+            className="rounded-4xl border border-white/10 bg-slate-950/70 p-6 shadow-2xl shadow-slate-950/40 backdrop-blur-xl sm:p-8"
           >
             <div className="mb-6 flex items-center justify-between gap-3">
               <div>
@@ -130,7 +132,7 @@ export default function FileUpload() {
               </div>
             </div>
 
-            <label className="flex min-h-[360px] cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border-2 border-dashed border-white/15 bg-white/5 p-8 text-center transition-colors hover:border-sky-400/70 hover:bg-white/8">
+            <label className="flex min-h-90 cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-white/15 bg-white/5 p-8 text-center transition-colors hover:border-sky-400/70 hover:bg-white/8">
               <Upload className="mb-5 h-14 w-14 text-sky-300" />
               <p className="text-2xl font-semibold text-white">
                 Drop a PDF here or click to upload

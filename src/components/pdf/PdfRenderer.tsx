@@ -7,8 +7,10 @@ import { usePdfStore } from "@/store/pdf-store";
 import type { PageInfo } from "@/types/annotations";
 
 if (typeof window !== "undefined") {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    window.location.origin + "/pdf.worker.min.mjs";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    "pdfjs-dist/build/pdf.worker.min.mjs",
+    import.meta.url,
+  ).toString();
 }
 
 interface PdfPageRendererProps {

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { usePdfStore } from "@/store/pdf-store";
 import type { ToolType } from "@/types/annotations";
 import {
@@ -131,6 +132,19 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
 
   return (
     <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 py-2 flex items-center gap-1 overflow-x-auto whitespace-nowrap sm:flex-wrap">
+      <div className="mr-1 flex items-center gap-2 rounded-lg px-2 py-1 text-gray-700 dark:text-gray-200 shrink-0">
+        <Image
+          src="/logos/logo.webp"
+          alt="PaperPilot"
+          width={22}
+          height={22}
+          className="h-5 w-5 rounded-sm object-contain"
+        />
+        <span className="hidden text-sm font-semibold sm:inline">
+          PaperPilot
+        </span>
+      </div>
+
       {/* Sidebar toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}

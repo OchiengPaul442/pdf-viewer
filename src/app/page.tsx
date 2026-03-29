@@ -7,7 +7,9 @@ const PdfWorkspace = dynamic(() => import("@/components/PdfWorkspace"), {
   ssr: false,
   loading: () => (
     <div className="flex min-h-dvh items-center justify-center bg-slate-950">
-      <Loader size={52} label="Loading PaperPilot" color="#7dd3fc" />
+      <div className="flex flex-col items-center gap-4">
+        <Loader size={52} label="Loading PaperPilot" color="#7dd3fc" />
+      </div>
     </div>
   ),
 });

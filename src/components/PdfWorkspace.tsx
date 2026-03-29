@@ -24,7 +24,9 @@ const PdfViewer = dynamic(() => import("@/components/pdf/PdfViewer"), {
   ssr: false,
   loading: () => (
     <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-      <Loader size={52} label="Loading PDF viewer" color="#2563eb" />
+      <div className="flex flex-col items-center gap-4">
+        <Loader size={52} label="Loading PDF viewer" color="#2563eb" />
+      </div>
     </div>
   ),
 });
