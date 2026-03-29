@@ -76,7 +76,26 @@ export async function exportPdf({
 
   const fontMap: Record<string, PDFFont> = {
     Helvetica: helvetica,
+    Arial: helvetica,
+    "Arial Narrow": helvetica,
+    Aptos: helvetica,
+    Calibri: helvetica,
+    Cambria: timesRoman,
+    Candara: helvetica,
+    "Century Gothic": helvetica,
+    "Comic Sans MS": helvetica,
+    Consolas: courier,
+    "Courier New": courier,
+    Georgia: timesRoman,
+    Impact: helvetica,
+    "Lucida Sans Unicode": helvetica,
+    "Palatino Linotype": timesRoman,
+    "Segoe UI": helvetica,
+    Tahoma: helvetica,
+    "Times New Roman": timesRoman,
     "Times-Roman": timesRoman,
+    "Trebuchet MS": helvetica,
+    Verdana: helvetica,
     Courier: courier,
   };
 
@@ -219,33 +238,17 @@ async function drawAnnotation(
 
     case "circle": {
       const c = ann as CircleAnnotation;
-      // pdf-lib doesn't have drawEllipse directly, use SVG path
-      const cx = pdfX + c.width / 2;
-      const cy = pdfY - c.height / 2;
-      const rx = c.width / 2;
-      const ry = c.height / 2;
-      // Approximate ellipse with SVG arc
-      const path = `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy}`;
-      try {
-        page.drawSvgPath(path, {
-          color:
-            c.fillColor !== "transparent" ? hexToRgb(c.fillColor) : undefined,
-          borderColor: hexToRgb(c.strokeColor),
-          borderWidth: c.strokeWidth,
-          opacity: c.opacity,
-        });
-      } catch {
-        // Fallback: draw rectangle as approximation
-        page.drawRectangle({
-          x: pdfX,
-          y: pdfY - c.height,
-          width: c.width,
-          height: c.height,
-          borderColor: hexToRgb(c.strokeColor),
-          borderWidth: c.strokeWidth,
-          opacity: c.opacity,
-        });
-      }
+      page.drawEllipse({
+        x: pdfX + c.width / 2,
+        y: pdfY - c.height / 2,
+        xScale: Math.max(1, c.width / 2),
+        yScale: Math.max(1, c.height / 2),
+        color:
+          c.fillColor !== "transparent" ? hexToRgb(c.fillColor) : undefined,
+        borderColor: hexToRgb(c.strokeColor),
+        borderWidth: c.strokeWidth,
+        opacity: c.opacity,
+      });
       break;
     }
 
@@ -309,10 +312,11 @@ async function drawAnnotation(
       page.drawText(s.text.substring(0, 200), {
         x: pdfX + 5,
         y: pdfY - 30,
-        size: 10,
+        size: 11,
         font: defaultFont,
-        color: rgb(0.2, 0.2, 0.2),
+        color: rgb(0.08, 0.08, 0.08),
         maxWidth: s.width - 10,
+        lineHeight: 12,
       });
       break;
     }

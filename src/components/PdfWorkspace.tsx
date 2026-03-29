@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { v4 as uuidv4 } from "uuid";
 import { usePdfStore } from "@/store/pdf-store";
@@ -55,11 +55,22 @@ export default function PdfWorkspace() {
   const { pdfDoc, loading, error } = usePdfDocument();
 
   const [watermarkModalOpen, setWatermarkModalOpen] = useState(false);
+  const [toolbarVisible, setToolbarVisible] = useState(true);
 
   const signatureModalOpen = activeTool === "signature";
   const stampModalOpen = activeTool === "stamp";
 
-  // Handle the image tool by opening a file picker, then returning to select mode.
+  const getSourcePdfData = useCallback(async () => {
+    if (pdfDoc) {
+      try {
+        return await pdfDoc.getData();
+      } catch (error) {
+        console.warn("Using raw PDF bytes after pdf.js getData failed:", error);
+      }
+    }
+    return pdfData;
+  }, [pdfDoc, pdfData]);
+
   useEffect(() => {
     if (activeTool !== "image") return;
 
@@ -136,9 +147,15 @@ export default function PdfWorkspace() {
 
   const handleExport = useCallback(async () => {
     if (!pdfData) return;
+
     try {
+      const sourcePdfData = await getSourcePdfData();
+      if (!sourcePdfData) {
+        throw new Error("No PDF data available");
+      }
+
       const result = await exportPdf({
-        pdfData,
+        pdfData: sourcePdfData,
         annotations,
         pageOrder,
         watermark,
@@ -153,10 +170,86 @@ export default function PdfWorkspace() {
       console.error("Export failed:", err);
       alert("Failed to export PDF. Please try again.");
     }
-  }, [pdfData, annotations, pageOrder, watermark, scale, fileName, markClean]);
+  }, [
+    pdfData,
+    getSourcePdfData,
+    annotations,
+    pageOrder,
+    watermark,
+    scale,
+    fileName,
+    markClean,
+  ]);
+
+  const handleReset = useCallback(() => {
+    usePdfStore.getState().resetDocument();
+    usePdfStore.temporal.getState().clear();
+  }, []);
+
+  const handleShare = useCallback(async () => {
+    if (!pdfData) return;
+
+    try {
+      const sourcePdfData = await getSourcePdfData();
+      if (!sourcePdfData) {
+        throw new Error("No PDF data available");
+      }
+
+      const bytes = await exportPdf({
+        pdfData: sourcePdfData,
+        annotations,
+        pageOrder,
+        watermark,
+        scale,
+      });
+
+      const shareName = fileName
+        ? fileName.replace(/\.pdf$/i, "")
+        : "paperpilot";
+      const buffer = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      );
+      const file = new File(
+        [buffer as ArrayBuffer],
+        `${shareName}_shared.pdf`,
+        {
+          type: "application/pdf",
+        },
+      );
+
+      if (
+        typeof navigator !== "undefined" &&
+        "share" in navigator &&
+        typeof navigator.canShare === "function" &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({
+          title: fileName || "PaperPilot PDF",
+          text: "Shared from PaperPilot",
+          files: [file],
+        });
+        return;
+      }
+
+      downloadBlob(bytes, `${shareName}_shared.pdf`);
+    } catch (err) {
+      console.error("Share failed:", err);
+      alert("Unable to share the PDF right now.");
+    }
+  }, [
+    pdfData,
+    getSourcePdfData,
+    annotations,
+    pageOrder,
+    watermark,
+    scale,
+    fileName,
+  ]);
 
   const handlePrint = useCallback(() => {
     if (!pdfData) return;
+
     const printBlob = (bytes: Uint8Array) => {
       const buffer = bytes.buffer.slice(
         bytes.byteOffset,
@@ -180,17 +273,53 @@ export default function PdfWorkspace() {
       };
     };
 
-    // Try to print the annotated PDF first, then fall back to the original
-    // document so printing still works if the editor cannot reserialize a PDF.
-    exportPdf({ pdfData, annotations, pageOrder, watermark, scale })
-      .then(printBlob)
-      .catch((err) => {
+    (async () => {
+      try {
+        const sourcePdfData = await getSourcePdfData();
+        if (!sourcePdfData) {
+          throw new Error("No PDF data available");
+        }
+
+        const bytes = await exportPdf({
+          pdfData: sourcePdfData,
+          annotations,
+          pageOrder,
+          watermark,
+          scale,
+        });
+        printBlob(bytes);
+      } catch (err) {
         console.error("Print failed, falling back to original PDF:", err);
         printBlob(pdfData);
-      });
-  }, [pdfData, annotations, pageOrder, watermark, scale]);
+      }
+    })();
+  }, [pdfData, getSourcePdfData, annotations, pageOrder, watermark, scale]);
 
-  // Warn before closing with unsaved changes
+  useEffect(() => {
+    const handleViewerScroll = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          direction: "up" | "down" | "steady";
+          scrollTop: number;
+        }>
+      ).detail;
+
+      if (!detail) return;
+
+      setToolbarVisible(detail.scrollTop < 24 || detail.direction !== "up");
+    };
+
+    window.addEventListener(
+      "pdfviewer-scroll",
+      handleViewerScroll as EventListener,
+    );
+    return () =>
+      window.removeEventListener(
+        "pdfviewer-scroll",
+        handleViewerScroll as EventListener,
+      );
+  }, []);
+
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -201,7 +330,6 @@ export default function PdfWorkspace() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey;
@@ -227,17 +355,16 @@ export default function PdfWorkspace() {
         usePdfStore.getState().setSearchOpen(true);
       }
 
-      // Tool shortcuts (only when not in input)
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement
-      )
+      ) {
         return;
+      }
 
       if (e.key === "Delete" || e.key === "Backspace") {
         const state = usePdfStore.getState();
         if (state.selectedAnnotationId) {
-          // Find which page the annotation is on
           for (const [pageIdx, anns] of Object.entries(state.annotations)) {
             const found = anns.find((a) => a.id === state.selectedAnnotationId);
             if (found) {
@@ -283,8 +410,19 @@ export default function PdfWorkspace() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <Toolbar onExport={handleExport} onPrint={handlePrint} />
-      <ToolProperties />
+      <div
+        className={`sticky top-0 z-40 transition-transform duration-300 ease-out will-change-transform ${
+          toolbarVisible ? "translate-y-0" : "-translate-y-full"
+        }`}
+      >
+        <Toolbar
+          onExport={handleExport}
+          onPrint={handlePrint}
+          onReset={handleReset}
+          onShare={handleShare}
+        />
+        <ToolProperties />
+      </div>
 
       <div className="relative flex flex-1 min-h-0 overflow-hidden">
         <PageSidebar pdfDoc={pdfDoc} />
@@ -312,7 +450,6 @@ export default function PdfWorkspace() {
         {pdfDoc && searchOpen && <SearchPanel pdfDoc={pdfDoc} />}
       </div>
 
-      {/* Watermark button in toolbar area */}
       <div className="fixed bottom-4 right-4 z-30">
         <button
           onClick={() => setWatermarkModalOpen(true)}
@@ -322,7 +459,6 @@ export default function PdfWorkspace() {
         </button>
       </div>
 
-      {/* Modals */}
       <SignatureModal
         open={signatureModalOpen}
         onClose={() => {

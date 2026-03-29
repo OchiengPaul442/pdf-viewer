@@ -16,6 +16,7 @@ export default function FileUpload() {
       }
       const buffer = await file.arrayBuffer();
       setPdfData(new Uint8Array(buffer), file.name);
+      usePdfStore.temporal.getState().clear();
     },
     [setPdfData],
   );

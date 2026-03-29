@@ -39,6 +39,7 @@ export default function SearchPanel({ pdfDoc }: SearchPanelProps) {
     async (query: string) => {
       if (!pdfDoc || !query.trim()) {
         setResults([]);
+        setSearching(false);
         return;
       }
 
@@ -84,6 +85,16 @@ export default function SearchPanel({ pdfDoc }: SearchPanelProps) {
     },
     [pdfDoc, numPages],
   );
+
+  useEffect(() => {
+    if (!searchOpen) return;
+
+    const handle = window.setTimeout(() => {
+      void doSearch(searchQuery);
+    }, 250);
+
+    return () => window.clearTimeout(handle);
+  }, [doSearch, searchOpen, searchQuery]);
 
   const handleSearch = useCallback(
     (e: React.FormEvent) => {

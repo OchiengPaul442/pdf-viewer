@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { useStore } from "zustand";
 import { usePdfStore } from "@/store/pdf-store";
@@ -28,6 +30,9 @@ import {
   Search,
   Undo2,
   Redo2,
+  MoreVertical,
+  Share2,
+  RefreshCcw,
   PanelLeft,
   FileUp,
 } from "lucide-react";
@@ -66,9 +71,16 @@ function ToolButton({
 interface ToolbarProps {
   onExport: () => void;
   onPrint: () => void;
+  onReset: () => void;
+  onShare: () => void;
 }
 
-export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
+export default function Toolbar({
+  onExport,
+  onPrint,
+  onReset,
+  onShare,
+}: ToolbarProps) {
   const {
     activeTool,
     setActiveTool,
@@ -93,6 +105,63 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
     usePdfStore.temporal,
     (state) => state.futureStates.length > 0,
   );
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreMenuPosition, setMoreMenuPosition] = useState({
+    top: 0,
+    left: 0,
+    width: 240,
+  });
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+
+  const updateMoreMenuPosition = useCallback(() => {
+    const button = moreButtonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const menuWidth = Math.min(240, window.innerWidth - 16);
+    const left = Math.max(
+      8,
+      Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
+    );
+
+    setMoreMenuPosition({
+      top: rect.bottom + 8,
+      left,
+      width: menuWidth,
+    });
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        !moreMenuRef.current?.contains(target) &&
+        !moreButtonRef.current?.contains(target)
+      ) {
+        setMoreOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+
+    updateMoreMenuPosition();
+
+    const handleWindowChange = () => updateMoreMenuPosition();
+    window.addEventListener("resize", handleWindowChange);
+    window.addEventListener("scroll", handleWindowChange, true);
+
+    return () => {
+      window.removeEventListener("resize", handleWindowChange);
+      window.removeEventListener("scroll", handleWindowChange, true);
+    };
+  }, [moreOpen, updateMoreMenuPosition]);
 
   const store = usePdfStore;
 
@@ -157,7 +226,6 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
         </span>
       </div>
 
-      {/* Sidebar toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
         title="Toggle page sidebar"
@@ -168,7 +236,6 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
 
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
-      {/* File controls */}
       <label
         title="Open PDF"
         className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer"
@@ -183,6 +250,7 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
             if (file) {
               const buffer = await file.arrayBuffer();
               setPdfData(new Uint8Array(buffer), file.name);
+              usePdfStore.temporal.getState().clear();
             }
           }}
         />
@@ -201,13 +269,78 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
       >
         <Printer size={18} />
       </button>
+      <button
+        onClick={onShare}
+        title="Share PDF"
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+      >
+        <Share2 size={18} />
+      </button>
+
+      <div className="relative">
+        <button
+          ref={moreButtonRef}
+          onClick={() => setMoreOpen((open) => !open)}
+          title="More actions"
+          aria-expanded={moreOpen}
+          className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+        >
+          <MoreVertical size={18} />
+        </button>
+        {moreOpen
+          ? createPortal(
+              <div
+                ref={moreMenuRef}
+                className="fixed z-[60] rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                style={{
+                  top: moreMenuPosition.top,
+                  left: moreMenuPosition.left,
+                  width: moreMenuPosition.width,
+                  maxWidth: "calc(100vw - 16px)",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    onReset();
+                    setMoreOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  <RefreshCcw size={16} />
+                  Reset PDF
+                </button>
+                <button
+                  onClick={() => {
+                    onPrint();
+                    setMoreOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  <Printer size={16} />
+                  Print PDF
+                </button>
+                <button
+                  onClick={() => {
+                    onShare();
+                    setMoreOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  <Share2 size={16} />
+                  Share PDF
+                </button>
+              </div>,
+              document.body,
+            )
+          : null}
+      </div>
 
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
-      {/* Undo/Redo */}
       <button
         onClick={handleUndo}
         title="Undo (Ctrl+Z)"
+        onDoubleClick={() => setActiveTool("select")}
         disabled={!canUndo}
         className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
       >
@@ -216,6 +349,7 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
       <button
         onClick={handleRedo}
         title="Redo (Ctrl+Y)"
+        onDoubleClick={() => setActiveTool("select")}
         disabled={!canRedo}
         className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
       >
@@ -224,7 +358,6 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
 
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
-      {/* Tools */}
       {tools.map(({ tool, icon, label }) => (
         <ToolButton
           key={tool}
@@ -232,13 +365,14 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
           icon={icon}
           label={label}
           activeTool={activeTool}
-          onClick={setActiveTool}
+          onClick={(nextTool) =>
+            setActiveTool(activeTool === nextTool ? "select" : nextTool)
+          }
         />
       ))}
 
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
-      {/* Search */}
       <button
         onClick={() => setSearchOpen(!searchOpen)}
         title="Search (Ctrl+F)"
@@ -251,10 +385,8 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
         <Search size={18} />
       </button>
 
-      {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Zoom controls */}
       <button
         onClick={() => setScale(scale - 0.1)}
         title="Zoom Out"
@@ -282,7 +414,6 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
 
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
-      {/* Page navigation */}
       <button
         onClick={() => scrollToPage(Math.max(0, currentPage - 1))}
         disabled={currentPage <= 0}
@@ -301,7 +432,6 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
         <ChevronRight size={18} />
       </button>
 
-      {/* File name */}
       {fileName && (
         <span
           className="text-xs text-gray-400 dark:text-gray-500 ml-2 truncate max-w-37.5"

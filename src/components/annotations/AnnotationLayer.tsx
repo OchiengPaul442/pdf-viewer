@@ -5,7 +5,7 @@ import {
   Stage,
   Layer,
   Rect,
-  Circle as KCircle,
+  Ellipse,
   Arrow as KArrow,
   Line as KLine,
   Text as KText,
@@ -33,6 +33,7 @@ import type {
   ImageAnnotation,
 } from "@/types/annotations";
 import useImage from "@/hooks/useImage";
+import { Fragment } from "react";
 
 interface AnnotationLayerProps {
   pageIndex: number;
@@ -507,7 +508,7 @@ export default function AnnotationLayer({
         case "text": {
           const t = ann as TextAnnotation;
           return (
-            <>
+            <Fragment key={t.id}>
               {isSelected && (
                 <Rect
                   x={t.x - 4}
@@ -556,7 +557,7 @@ export default function AnnotationLayer({
                   node.scaleY(1);
                 }}
               />
-            </>
+            </Fragment>
           );
         }
 
@@ -637,13 +638,13 @@ export default function AnnotationLayer({
         case "circle": {
           const c = ann as CircleAnnotation;
           return (
-            <KCircle
+            <Ellipse
               key={c.id}
               id={c.id}
-              x={c.x + c.width / 2}
-              y={c.y + c.height / 2}
-              radiusX={c.width / 2}
-              radiusY={c.height / 2}
+              x={c.x}
+              y={c.y}
+              radiusX={Math.max(1, c.width / 2)}
+              radiusY={Math.max(1, c.height / 2)}
               fill={c.fillColor === "transparent" ? undefined : c.fillColor}
               stroke={c.strokeColor}
               strokeWidth={c.strokeWidth}
@@ -651,13 +652,18 @@ export default function AnnotationLayer({
               draggable={commonDrag}
               onClick={() => handleSelect(c.id)}
               onTap={() => handleSelect(c.id)}
-              onDragEnd={(e) =>
-                handleDragEnd(
-                  c.id,
-                  e.target.x() - c.width / 2,
-                  e.target.y() - c.height / 2,
-                )
-              }
+              onDragEnd={(e) => handleDragEnd(c.id, e.target.x(), e.target.y())}
+              onTransformEnd={(e) => {
+                const node = e.target;
+                handleTransformEnd(c.id, {
+                  x: node.x(),
+                  y: node.y(),
+                  width: Math.max(5, node.width() * node.scaleX()),
+                  height: Math.max(5, node.height() * node.scaleY()),
+                });
+                node.scaleX(1);
+                node.scaleY(1);
+              }}
             />
           );
         }
@@ -743,12 +749,15 @@ export default function AnnotationLayer({
               <KText x={5} y={3} text="📝" fontSize={12} />
               <KText
                 x={5}
-                y={25}
+                y={24}
                 text={s.text}
-                fontSize={12}
-                fill="#333"
+                fontSize={13}
+                fill="#111827"
                 width={s.width - 10}
                 height={s.height - 30}
+                wrap="word"
+                lineHeight={1.25}
+                verticalAlign="top"
               />
             </Group>
           );

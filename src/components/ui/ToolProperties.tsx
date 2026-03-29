@@ -34,6 +34,28 @@ export default function ToolProperties() {
   const showText = ["text", "sticky-note"].includes(activeTool);
   const showHighlightColor = activeTool === "highlight";
   const showStampColor = activeTool === "stamp";
+  const wordFonts = [
+    "Arial",
+    "Arial Narrow",
+    "Aptos",
+    "Calibri",
+    "Cambria",
+    "Candara",
+    "Century Gothic",
+    "Comic Sans MS",
+    "Consolas",
+    "Courier New",
+    "Georgia",
+    "Helvetica",
+    "Impact",
+    "Lucida Sans Unicode",
+    "Palatino Linotype",
+    "Segoe UI",
+    "Tahoma",
+    "Times New Roman",
+    "Trebuchet MS",
+    "Verdana",
+  ];
 
   return (
     <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-4 text-sm flex-wrap overflow-x-auto">
@@ -46,9 +68,11 @@ export default function ToolProperties() {
               onChange={(e) => setFontFamily(e.target.value)}
               className="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs"
             >
-              <option value="Helvetica">Helvetica</option>
-              <option value="Times-Roman">Times Roman</option>
-              <option value="Courier">Courier</option>
+              {wordFonts.map((font) => (
+                <option key={font} value={font}>
+                  {font}
+                </option>
+              ))}
             </select>
           </label>
           <label className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">

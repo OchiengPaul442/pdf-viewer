@@ -28,8 +28,10 @@ export default function PdfViewer({ pdfDoc }: PdfViewerProps) {
   const [viewports, setViewports] = useState<ViewportMap>({});
   const observerRef = useRef<IntersectionObserver | null>(null);
   const pageRefsMap = useRef<Map<number, HTMLDivElement>>(new Map());
+  const lastScrollTopRef = useRef(0);
 
-  const { scale, pageOrder, pageInfos, setCurrentPage } = usePdfStore();
+  const { scale, pageOrder, pageInfos, setCurrentPage, watermark } =
+    usePdfStore();
 
   // Set up IntersectionObserver for page virtualization
   useEffect(() => {
@@ -77,6 +79,23 @@ export default function PdfViewer({ pdfDoc }: PdfViewerProps) {
     if (!container) return;
 
     const handleScroll = () => {
+      const currentScrollTop = container.scrollTop;
+      const previousScrollTop = lastScrollTopRef.current;
+      lastScrollTopRef.current = currentScrollTop;
+
+      const direction =
+        currentScrollTop > previousScrollTop + 8
+          ? "down"
+          : currentScrollTop < previousScrollTop - 8
+            ? "up"
+            : "steady";
+
+      window.dispatchEvent(
+        new CustomEvent("pdfviewer-scroll", {
+          detail: { direction, scrollTop: currentScrollTop },
+        }),
+      );
+
       const containerRect = container.getBoundingClientRect();
       const centerY = containerRect.top + containerRect.height / 2;
 
@@ -159,6 +178,32 @@ export default function PdfViewer({ pdfDoc }: PdfViewerProps) {
           const pageWidth = info ? info.width * scale : 612 * scale;
           const pageHeight = info ? info.height * scale : 792 * scale;
           const isVisible = visiblePages.has(displayIdx);
+          const watermarkLeft =
+            watermark.position === "top-left" ||
+            watermark.position === "bottom-left"
+              ? "8%"
+              : watermark.position === "top-right" ||
+                  watermark.position === "bottom-right"
+                ? "92%"
+                : "50%";
+          const watermarkTop =
+            watermark.position === "top-left" ||
+            watermark.position === "top-right"
+              ? "12%"
+              : watermark.position === "bottom-left" ||
+                  watermark.position === "bottom-right"
+                ? "88%"
+                : "50%";
+          const watermarkTransform =
+            watermark.position === "center"
+              ? `translate(-50%, -50%) rotate(${watermark.rotation}deg)`
+              : watermark.position === "top-right"
+                ? `translateX(-100%) rotate(${watermark.rotation}deg)`
+                : watermark.position === "bottom-left"
+                  ? `translateY(-100%) rotate(${watermark.rotation}deg)`
+                  : watermark.position === "bottom-right"
+                    ? `translate(-100%, -100%) rotate(${watermark.rotation}deg)`
+                    : `rotate(${watermark.rotation}deg)`;
 
           return (
             <div
@@ -179,6 +224,25 @@ export default function PdfViewer({ pdfDoc }: PdfViewerProps) {
                     scale={scale}
                     onPageRender={handlePageRender}
                   />
+                  {watermark.enabled && watermark.text && (
+                    <div className="pointer-events-none absolute inset-0 select-none">
+                      <div
+                        className="absolute font-bold uppercase tracking-[0.35em] whitespace-nowrap"
+                        style={{
+                          left: watermarkLeft,
+                          top: watermarkTop,
+                          transform: watermarkTransform,
+                          transformOrigin: "center",
+                          color: watermark.color,
+                          opacity: watermark.opacity,
+                          fontSize: `${Math.max(12, watermark.fontSize * scale)}px`,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {watermark.text}
+                      </div>
+                    </div>
+                  )}
                   {viewports[originalPageIdx] && (
                     <AnnotationLayer
                       pageIndex={originalPageIdx}

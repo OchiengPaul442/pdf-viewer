@@ -34,9 +34,11 @@ export function PdfPageRenderer({
   const textLayerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
   const pageRef = useRef<PDFPageProxy | null>(null);
+  const searchQuery = usePdfStore((state) => state.searchQuery);
 
   useEffect(() => {
     let cancelled = false;
+    const lowerSearchQuery = searchQuery.trim().toLowerCase();
 
     async function renderPage() {
       const canvas = canvasRef.current;
@@ -107,6 +109,13 @@ export function PdfPageRenderer({
             span.style.color = "transparent";
             span.style.pointerEvents = "all";
             span.style.userSelect = "text";
+            if (
+              lowerSearchQuery &&
+              item.str.toLowerCase().includes(lowerSearchQuery)
+            ) {
+              span.style.backgroundColor = "rgba(250, 204, 21, 0.55)";
+              span.style.borderRadius = "2px";
+            }
             textLayerRef.current.appendChild(span);
           }
         }
@@ -132,7 +141,7 @@ export function PdfPageRenderer({
         pageRef.current.cleanup();
       }
     };
-  }, [pageIndex, pdfDoc, scale, onPageRender]);
+  }, [pageIndex, pdfDoc, scale, onPageRender, searchQuery]);
 
   return (
     <div className="relative">

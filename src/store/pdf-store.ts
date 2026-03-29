@@ -19,6 +19,8 @@ interface PdfState extends AnnotationState {
   numPages: number;
   pageInfos: PageInfo[];
   pageOrder: number[];
+  originalPageInfos: PageInfo[];
+  originalPageOrder: number[];
 
   // UI
   currentPage: number;
@@ -87,6 +89,9 @@ interface PdfState extends AnnotationState {
   // Watermark
   setWatermark: (settings: Partial<WatermarkSettings>) => void;
 
+  // Reset document edits
+  resetDocument: () => void;
+
   // UI toggles
   setSidebarOpen: (open: boolean) => void;
   setSearchOpen: (open: boolean) => void;
@@ -111,6 +116,8 @@ const initialState = {
   numPages: 0,
   pageInfos: [],
   pageOrder: [],
+  originalPageInfos: [],
+  originalPageOrder: [],
   currentPage: 0,
   scale: 1.0,
   activeTool: "select" as ToolType,
@@ -152,10 +159,25 @@ export const usePdfStore = create<PdfState>()(
           currentPage: 0,
           selectedAnnotationId: null,
           isDirty: false,
+          pageOrder: [],
+          pageInfos: [],
+          originalPageInfos: [],
+          originalPageOrder: [],
+          activeTool: "select",
+          searchOpen: false,
+          searchQuery: "",
         }),
       setNumPages: (n) =>
-        set({ numPages: n, pageOrder: Array.from({ length: n }, (_, i) => i) }),
-      setPageInfos: (infos) => set({ pageInfos: infos }),
+        set({
+          numPages: n,
+          pageOrder: Array.from({ length: n }, (_, i) => i),
+          originalPageOrder: Array.from({ length: n }, (_, i) => i),
+        }),
+      setPageInfos: (infos) =>
+        set({
+          pageInfos: infos,
+          originalPageInfos: infos.map((info) => ({ ...info })),
+        }),
       setPageOrder: (order) => set({ pageOrder: order, isDirty: true }),
 
       // Navigation
@@ -289,6 +311,34 @@ export const usePdfStore = create<PdfState>()(
         set((state) => ({
           watermark: { ...state.watermark, ...settings },
           isDirty: true,
+        })),
+
+      resetDocument: () =>
+        set((state) => ({
+          annotations: {},
+          formFields: {},
+          pageOrder:
+            state.originalPageOrder.length > 0
+              ? [...state.originalPageOrder]
+              : Array.from({ length: state.numPages }, (_, i) => i),
+          pageInfos:
+            state.originalPageInfos.length > 0
+              ? state.originalPageInfos.map((info) => ({ ...info }))
+              : state.pageInfos,
+          currentPage: 0,
+          activeTool: "select",
+          selectedAnnotationId: null,
+          isDirty: false,
+          searchOpen: false,
+          searchQuery: "",
+          watermark: initialState.watermark,
+          strokeColor: initialState.strokeColor,
+          fillColor: initialState.fillColor,
+          strokeWidth: initialState.strokeWidth,
+          fontSize: initialState.fontSize,
+          fontFamily: initialState.fontFamily,
+          fontColor: initialState.fontColor,
+          annotationOpacity: initialState.annotationOpacity,
         })),
 
       // UI
