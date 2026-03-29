@@ -105,7 +105,7 @@ export default function PageSidebar({ pdfDoc }: PageSidebarProps) {
   if (!sidebarOpen) return null;
 
   return (
-    <div className="w-48 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shrink-0">
+    <div className="absolute inset-y-0 left-0 z-30 w-72 max-w-[85vw] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto shadow-2xl sm:relative sm:z-auto sm:w-48 sm:max-w-none sm:shadow-none sm:shrink-0">
       <div className="p-2 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
         Pages ({numPages})
       </div>

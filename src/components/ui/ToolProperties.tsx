@@ -36,7 +36,7 @@ export default function ToolProperties() {
   const showStampColor = activeTool === "stamp";
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-4 text-sm flex-wrap">
+    <div className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-4 text-sm flex-wrap overflow-x-auto">
       {showText && (
         <>
           <label className="flex items-center gap-1.5 text-gray-600 dark:text-gray-300">

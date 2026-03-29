@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { v4 as uuidv4 } from "uuid";
 import { usePdfStore } from "@/store/pdf-store";
 import { usePdfDocument } from "@/components/pdf/PdfRenderer";
+import Loader from "@/components/ui/Loader";
 import FileUpload from "@/components/ui/FileUpload";
 import Toolbar from "@/components/ui/Toolbar";
 import ToolProperties from "@/components/ui/ToolProperties";
@@ -23,7 +24,7 @@ const PdfViewer = dynamic(() => import("@/components/pdf/PdfViewer"), {
   ssr: false,
   loading: () => (
     <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-      <div className="text-gray-500 animate-pulse">Loading PDF viewer...</div>
+      <Loader size={52} label="Loading PDF viewer" color="#2563eb" />
     </div>
   ),
 });
@@ -270,18 +271,18 @@ export default function PdfWorkspace() {
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex min-h-dvh flex-col">
       <Toolbar onExport={handleExport} onPrint={handlePrint} />
       <ToolProperties />
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
         <PageSidebar pdfDoc={pdfDoc} />
 
         {loading && (
           <div className="flex-1 flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <span className="text-gray-500">Loading PDF...</span>
+            <div className="flex flex-col items-center gap-4 text-gray-500 dark:text-gray-300">
+              <Loader size={52} label="Loading PDF" color="#2563eb" />
+              <span className="text-sm">Loading PDF...</span>
             </div>
           </div>
         )}

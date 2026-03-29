@@ -130,7 +130,7 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
   ];
 
   return (
-    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 py-2 flex items-center gap-1 flex-wrap">
+    <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-3 py-2 flex items-center gap-1 overflow-x-auto whitespace-nowrap sm:flex-wrap">
       {/* Sidebar toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -234,7 +234,7 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
       >
         <ZoomOut size={18} />
       </button>
-      <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[3rem] text-center">
+      <span className="text-sm text-gray-600 dark:text-gray-300 min-w-12 text-center">
         {Math.round(scale * 100)}%
       </span>
       <button
@@ -262,7 +262,7 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
       >
         <ChevronLeft size={18} />
       </button>
-      <span className="text-sm text-gray-600 dark:text-gray-300 min-w-[4rem] text-center">
+      <span className="text-sm text-gray-600 dark:text-gray-300 min-w-16 text-center">
         {currentPage + 1} / {numPages}
       </span>
       <button
@@ -276,7 +276,7 @@ export default function Toolbar({ onExport, onPrint }: ToolbarProps) {
       {/* File name */}
       {fileName && (
         <span
-          className="text-xs text-gray-400 dark:text-gray-500 ml-2 truncate max-w-[150px]"
+          className="text-xs text-gray-400 dark:text-gray-500 ml-2 truncate max-w-37.5"
           title={fileName}
         >
           {fileName}
