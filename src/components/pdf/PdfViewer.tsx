@@ -30,7 +30,7 @@ export default function PdfViewer({ pdfDoc }: PdfViewerProps) {
   const pageRefsMap = useRef<Map<number, HTMLDivElement>>(new Map());
   const lastScrollTopRef = useRef(0);
 
-  const { scale, pageOrder, pageInfos, setCurrentPage, watermark } =
+  const { scale, pageOrder, pageInfos, pageTexts, setCurrentPage, watermark } =
     usePdfStore();
 
   // Set up IntersectionObserver for page virtualization
@@ -169,9 +169,23 @@ export default function PdfViewer({ pdfDoc }: PdfViewerProps) {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 p-4"
+      className="relative flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 p-4"
       style={{ scrollBehavior: "smooth" }}
     >
+      <div
+        aria-hidden="true"
+        className="sr-only whitespace-pre-wrap text-transparent"
+      >
+        {pageOrder.map((originalPageIdx, displayIdx) => {
+          const text = pageTexts[originalPageIdx] || "";
+          return text ? (
+            <div key={`search-${displayIdx}-${originalPageIdx}`}>
+              Page {displayIdx + 1}. {text}
+            </div>
+          ) : null;
+        })}
+      </div>
+
       <div className="flex flex-col items-center gap-4">
         {pageOrder.map((originalPageIdx, displayIdx) => {
           const info = pageInfos[originalPageIdx];

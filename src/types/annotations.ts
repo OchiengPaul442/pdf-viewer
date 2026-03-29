@@ -24,6 +24,7 @@ export interface BaseAnnotation {
   rotation: number;
   opacity: number;
   createdAt: number;
+  renderScale?: number;
 }
 
 export interface TextAnnotation extends BaseAnnotation {

@@ -73,6 +73,7 @@ interface ToolbarProps {
   onPrint: () => void;
   onReset: () => void;
   onShare: () => void;
+  onBrowserFind: () => void;
 }
 
 export default function Toolbar({
@@ -80,6 +81,7 @@ export default function Toolbar({
   onPrint,
   onReset,
   onShare,
+  onBrowserFind,
 }: ToolbarProps) {
   const {
     activeTool,
@@ -91,8 +93,6 @@ export default function Toolbar({
     setCurrentPage,
     sidebarOpen,
     setSidebarOpen,
-    searchOpen,
-    setSearchOpen,
     fileName,
     setPdfData,
   } = usePdfStore();
@@ -291,7 +291,7 @@ export default function Toolbar({
           ? createPortal(
               <div
                 ref={moreMenuRef}
-                className="fixed z-[60] rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                className="fixed z-60 rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-800"
                 style={{
                   top: moreMenuPosition.top,
                   left: moreMenuPosition.left,
@@ -374,13 +374,9 @@ export default function Toolbar({
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
       <button
-        onClick={() => setSearchOpen(!searchOpen)}
-        title="Search (Ctrl+F)"
-        className={`p-2 rounded-lg transition-colors ${
-          searchOpen
-            ? "bg-blue-500 text-white"
-            : "text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-        }`}
+        onClick={onBrowserFind}
+        title="Browser Find (Ctrl+F)"
+        className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
       >
         <Search size={18} />
       </button>

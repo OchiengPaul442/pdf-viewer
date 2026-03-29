@@ -31,9 +31,30 @@ const PdfViewer = dynamic(() => import("@/components/pdf/PdfViewer"), {
   ),
 });
 
-const SearchPanel = dynamic(() => import("@/components/ui/SearchPanel"), {
-  ssr: false,
-});
+function openBrowserFind(query = "") {
+  if (typeof window === "undefined") return;
+
+  const nativeFind = window as Window & {
+    find?: (
+      string: string,
+      caseSensitive?: boolean,
+      backwards?: boolean,
+      wrapAround?: boolean,
+      wholeWord?: boolean,
+      searchInFrames?: boolean,
+      showDialog?: boolean,
+    ) => boolean;
+  };
+
+  if (typeof nativeFind.find === "function") {
+    try {
+      nativeFind.find(query, false, false, true, false, true, true);
+      return;
+    } catch (error) {
+      console.warn("Browser find failed:", error);
+    }
+  }
+}
 
 export default function PdfWorkspace() {
   const {
@@ -49,7 +70,6 @@ export default function PdfWorkspace() {
     markClean,
     addAnnotation,
     currentPage,
-    searchOpen,
   } = usePdfStore();
 
   const { pdfDoc, loading, error } = usePdfDocument();
@@ -94,6 +114,7 @@ export default function PdfWorkspace() {
           rotation: 0,
           opacity: 1,
           createdAt: Date.now(),
+          renderScale: scale,
           dataUrl,
         } as ImageAnnotation);
       };
@@ -101,7 +122,7 @@ export default function PdfWorkspace() {
     };
     input.click();
     window.setTimeout(() => setActiveTool("select"), 0);
-  }, [activeTool, addAnnotation, currentPage, setActiveTool]);
+  }, [activeTool, addAnnotation, currentPage, setActiveTool, scale]);
 
   const handleSignatureSave = useCallback(
     (dataUrl: string) => {
@@ -116,11 +137,12 @@ export default function PdfWorkspace() {
         rotation: 0,
         opacity: 1,
         createdAt: Date.now(),
+        renderScale: scale,
         dataUrl,
       } as SignatureAnnotation);
       setActiveTool("select");
     },
-    [addAnnotation, currentPage, setActiveTool],
+    [addAnnotation, currentPage, setActiveTool, scale],
   );
 
   const handleStampSelect = useCallback(
@@ -137,12 +159,13 @@ export default function PdfWorkspace() {
         rotation: 0,
         opacity: 1,
         createdAt: Date.now(),
+        renderScale: scale,
         text,
         color,
       } as StampAnnotation);
       setActiveTool("select");
     },
-    [addAnnotation, currentPage, setActiveTool],
+    [addAnnotation, currentPage, setActiveTool, scale],
   );
 
   const handleExport = useCallback(async () => {
@@ -351,8 +374,8 @@ export default function PdfWorkspace() {
         handlePrint();
       }
       if (ctrl && e.key === "f") {
-        e.preventDefault();
-        usePdfStore.getState().setSearchOpen(true);
+        openBrowserFind();
+        return;
       }
 
       if (
@@ -420,6 +443,7 @@ export default function PdfWorkspace() {
           onPrint={handlePrint}
           onReset={handleReset}
           onShare={handleShare}
+          onBrowserFind={() => openBrowserFind()}
         />
         <ToolProperties />
       </div>
@@ -446,8 +470,6 @@ export default function PdfWorkspace() {
         )}
 
         {pdfDoc && !loading && <PdfViewer pdfDoc={pdfDoc} />}
-
-        {pdfDoc && searchOpen && <SearchPanel pdfDoc={pdfDoc} />}
       </div>
 
       <div className="fixed bottom-4 right-4 z-30">

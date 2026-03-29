@@ -159,7 +159,7 @@ export function usePdfDocument() {
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { pdfData, setNumPages, setPageInfos } = usePdfStore();
+  const { pdfData, setNumPages, setPageInfos, setPageTexts } = usePdfStore();
 
   const loadDocument = useCallback(
     async (data: Uint8Array) => {
@@ -172,6 +172,7 @@ export function usePdfDocument() {
 
         // Collect page info
         const infos: PageInfo[] = [];
+        const texts: string[] = [];
         for (let i = 1; i <= doc.numPages; i++) {
           const page = await doc.getPage(i);
           const viewport = page.getViewport({ scale: 1 });
@@ -180,9 +181,18 @@ export function usePdfDocument() {
             height: viewport.height,
             rotation: page.rotate,
           });
+
+          const textContent = await page.getTextContent();
+          texts.push(
+            textContent.items
+              .map((item) => ("str" in item ? item.str : ""))
+              .join(" "),
+          );
+
           page.cleanup();
         }
         setPageInfos(infos);
+        setPageTexts(texts);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load PDF");
         setPdfDoc(null);
@@ -190,7 +200,7 @@ export function usePdfDocument() {
         setLoading(false);
       }
     },
-    [setNumPages, setPageInfos],
+    [setNumPages, setPageInfos, setPageTexts],
   );
 
   useEffect(() => {

@@ -41,6 +41,14 @@ interface ExportOptions {
   scale: number;
 }
 
+function getScaleFactor(scale: number) {
+  return Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
+
+function getAnnotationRenderScale(ann: Annotation, fallbackScale: number) {
+  return getScaleFactor(ann.renderScale ?? fallbackScale);
+}
+
 function normalizePdfData(pdfData: Uint8Array) {
   const header = [0x25, 0x50, 0x44, 0x46, 0x2d];
 
@@ -61,18 +69,41 @@ function normalizePdfData(pdfData: Uint8Array) {
   return pdfData;
 }
 
+function dataUrlToBytes(dataUrl: string) {
+  const commaIndex = dataUrl.indexOf(",");
+  if (commaIndex === -1) {
+    throw new Error("Invalid data URL");
+  }
+
+  const meta = dataUrl.slice(0, commaIndex);
+  const payload = dataUrl.slice(commaIndex + 1);
+
+  if (meta.includes(";base64")) {
+    const binary = atob(payload);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  return new TextEncoder().encode(decodeURIComponent(payload));
+}
+
 export async function exportPdf({
   pdfData,
   annotations,
   pageOrder,
   watermark,
+  scale,
 }: ExportOptions): Promise<Uint8Array> {
   const normalizedPdfData = normalizePdfData(pdfData);
-  const pdfDoc = await PDFDocument.load(normalizedPdfData);
-  const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const courier = await pdfDoc.embedFont(StandardFonts.Courier);
-  const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+  const sourceDoc = await PDFDocument.load(normalizedPdfData);
+  const fallbackScale = getScaleFactor(scale);
+  const helvetica = await sourceDoc.embedFont(StandardFonts.Helvetica);
+  const helveticaBold = await sourceDoc.embedFont(StandardFonts.HelveticaBold);
+  const courier = await sourceDoc.embedFont(StandardFonts.Courier);
+  const timesRoman = await sourceDoc.embedFont(StandardFonts.TimesRoman);
 
   const fontMap: Record<string, PDFFont> = {
     Helvetica: helvetica,
@@ -99,47 +130,52 @@ export async function exportPdf({
     Courier: courier,
   };
 
-  const pages = pdfDoc.getPages();
+  const sourcePages = sourceDoc.getPages();
+  const orderedPageIndexes =
+    pageOrder.length > 0 ? pageOrder.filter((pageIdx) => pageIdx >= 0) : [];
+  const shouldReorder =
+    orderedPageIndexes.length > 0 &&
+    orderedPageIndexes.some((pageIdx, index) => pageIdx !== index);
+  const pdfDoc = shouldReorder ? await PDFDocument.create() : sourceDoc;
+  const exportPages: Array<{ page: PDFPage; sourcePageIndex: number }> = [];
 
-  // Reorder pages if needed
-  if (pageOrder.length > 0 && pageOrder.some((v, i) => v !== i)) {
-    // Create a new document in the desired order
-    const newDoc = await PDFDocument.create();
-    for (const origIdx of pageOrder) {
-      if (origIdx < pages.length) {
-        const [copiedPage] = await newDoc.copyPages(pdfDoc, [origIdx]);
-        newDoc.addPage(copiedPage);
+  if (shouldReorder) {
+    for (const sourcePageIndex of orderedPageIndexes) {
+      if (sourcePageIndex < 0 || sourcePageIndex >= sourcePages.length) {
+        continue;
       }
+      const [copiedPage] = await pdfDoc.copyPages(sourceDoc, [sourcePageIndex]);
+      pdfDoc.addPage(copiedPage);
+      exportPages.push({ page: copiedPage, sourcePageIndex });
     }
-    // We can't easily swap in-place, so we'll work with the original order
-    // The annotations are keyed by original page index anyway
+  } else {
+    sourcePages.forEach((page, sourcePageIndex) => {
+      exportPages.push({ page, sourcePageIndex });
+    });
   }
 
-  // Flatten annotations per page
-  for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
-    const page = pages[pageIdx];
+  for (const { page, sourcePageIndex } of exportPages) {
     const { width: pageWidth, height: pageHeight } = page.getSize();
-    const pageAnns = annotations[pageIdx] || [];
+    const pageAnns = annotations[sourcePageIndex] || [];
 
     // Sort by creation time for proper z-ordering
     const sorted = [...pageAnns].sort((a, b) => a.createdAt - b.createdAt);
 
     for (const ann of sorted) {
-      // Convert screen coordinates to PDF coordinates (flip Y axis)
-      const pdfX = ann.x;
-      const pdfY = pageHeight - ann.y;
-
-      await drawAnnotation(
-        page,
-        ann,
-        pdfX,
-        pdfY,
-        pageHeight,
-        fontMap,
-        helvetica,
-        helveticaBold,
-        pdfDoc,
-      );
+      try {
+        await drawAnnotation(
+          page,
+          ann,
+          pageHeight,
+          fontMap,
+          helvetica,
+          helveticaBold,
+          pdfDoc,
+          fallbackScale,
+        );
+      } catch (error) {
+        console.warn("Skipping annotation during export:", error);
+      }
     }
 
     // Draw watermark on each page
@@ -154,22 +190,25 @@ export async function exportPdf({
 async function drawAnnotation(
   page: PDFPage,
   ann: Annotation,
-  pdfX: number,
-  pdfY: number,
   pageHeight: number,
   fontMap: Record<string, PDFFont>,
   defaultFont: PDFFont,
   boldFont: PDFFont,
   pdfDoc: PDFDocument,
+  fallbackScale: number,
 ) {
+  const normalizedScale = getAnnotationRenderScale(ann, fallbackScale);
+  const pdfX = ann.x / normalizedScale;
+  const pdfY = pageHeight - ann.y / normalizedScale;
+
   switch (ann.type) {
     case "text": {
       const t = ann as TextAnnotation;
       const font = fontMap[t.fontFamily] || defaultFont;
       page.drawText(t.text, {
         x: pdfX,
-        y: pdfY - t.fontSize,
-        size: t.fontSize,
+        y: pdfY - t.fontSize / normalizedScale,
+        size: t.fontSize / normalizedScale,
         font,
         color: hexToRgb(t.fontColor),
         opacity: t.opacity,
@@ -181,9 +220,9 @@ async function drawAnnotation(
       const h = ann as HighlightAnnotation;
       page.drawRectangle({
         x: pdfX,
-        y: pdfY - h.height,
-        width: h.width,
-        height: h.height,
+        y: pdfY - h.height / normalizedScale,
+        width: h.width / normalizedScale,
+        height: h.height / normalizedScale,
         color: hexToRgb(h.color),
         opacity: h.opacity,
       });
@@ -194,23 +233,29 @@ async function drawAnnotation(
       const f = ann as FreehandAnnotation;
       // Build SVG path from points
       if (f.points.length >= 4) {
-        let path = `M ${f.points[0]} ${pageHeight - f.points[1]}`;
+        let path = `M ${f.points[0] / normalizedScale} ${pageHeight - f.points[1] / normalizedScale}`;
         for (let i = 2; i < f.points.length; i += 2) {
-          path += ` L ${f.points[i]} ${pageHeight - f.points[i + 1]}`;
+          path += ` L ${f.points[i] / normalizedScale} ${pageHeight - f.points[i + 1] / normalizedScale}`;
         }
         try {
           page.drawSvgPath(path, {
             borderColor: hexToRgb(f.strokeColor),
-            borderWidth: f.strokeWidth,
+            borderWidth: f.strokeWidth / normalizedScale,
             opacity: f.opacity,
           });
         } catch {
           // Fallback: draw line segments
           for (let i = 0; i < f.points.length - 2; i += 2) {
             page.drawLine({
-              start: { x: f.points[i], y: pageHeight - f.points[i + 1] },
-              end: { x: f.points[i + 2], y: pageHeight - f.points[i + 3] },
-              thickness: f.strokeWidth,
+              start: {
+                x: f.points[i] / normalizedScale,
+                y: pageHeight - f.points[i + 1] / normalizedScale,
+              },
+              end: {
+                x: f.points[i + 2] / normalizedScale,
+                y: pageHeight - f.points[i + 3] / normalizedScale,
+              },
+              thickness: f.strokeWidth / normalizedScale,
               color: hexToRgb(f.strokeColor),
               opacity: f.opacity,
             });
@@ -224,13 +269,13 @@ async function drawAnnotation(
       const r = ann as RectangleAnnotation;
       page.drawRectangle({
         x: pdfX,
-        y: pdfY - r.height,
-        width: r.width,
-        height: r.height,
+        y: pdfY - r.height / normalizedScale,
+        width: r.width / normalizedScale,
+        height: r.height / normalizedScale,
         color:
           r.fillColor !== "transparent" ? hexToRgb(r.fillColor) : undefined,
         borderColor: hexToRgb(r.strokeColor),
-        borderWidth: r.strokeWidth,
+        borderWidth: r.strokeWidth / normalizedScale,
         opacity: r.opacity,
       });
       break;
@@ -239,14 +284,14 @@ async function drawAnnotation(
     case "circle": {
       const c = ann as CircleAnnotation;
       page.drawEllipse({
-        x: pdfX + c.width / 2,
-        y: pdfY - c.height / 2,
-        xScale: Math.max(1, c.width / 2),
-        yScale: Math.max(1, c.height / 2),
+        x: pdfX + c.width / (2 * normalizedScale),
+        y: pdfY - c.height / (2 * normalizedScale),
+        xScale: Math.max(1, c.width / (2 * normalizedScale)),
+        yScale: Math.max(1, c.height / (2 * normalizedScale)),
         color:
           c.fillColor !== "transparent" ? hexToRgb(c.fillColor) : undefined,
         borderColor: hexToRgb(c.strokeColor),
-        borderWidth: c.strokeWidth,
+        borderWidth: c.strokeWidth / normalizedScale,
         opacity: c.opacity,
       });
       break;
@@ -257,9 +302,15 @@ async function drawAnnotation(
       const l = ann as LineAnnotation | ArrowAnnotation;
       if (l.points.length >= 4) {
         page.drawLine({
-          start: { x: l.points[0], y: pageHeight - l.points[1] },
-          end: { x: l.points[2], y: pageHeight - l.points[3] },
-          thickness: l.strokeWidth,
+          start: {
+            x: l.points[0] / normalizedScale,
+            y: pageHeight - l.points[1] / normalizedScale,
+          },
+          end: {
+            x: l.points[2] / normalizedScale,
+            y: pageHeight - l.points[3] / normalizedScale,
+          },
+          thickness: l.strokeWidth / normalizedScale,
           color: hexToRgb(l.strokeColor),
           opacity: l.opacity,
         });
@@ -269,8 +320,8 @@ async function drawAnnotation(
           const dy = l.points[3] - l.points[1];
           const angle = Math.atan2(dy, dx);
           const headLen = 12;
-          const x2 = l.points[2];
-          const y2 = pageHeight - l.points[3];
+          const x2 = l.points[2] / normalizedScale;
+          const y2 = pageHeight - l.points[3] / normalizedScale;
 
           page.drawLine({
             start: { x: x2, y: y2 },
@@ -278,7 +329,7 @@ async function drawAnnotation(
               x: x2 - headLen * Math.cos(angle - Math.PI / 6),
               y: y2 + headLen * Math.sin(angle - Math.PI / 6),
             },
-            thickness: l.strokeWidth,
+            thickness: l.strokeWidth / normalizedScale,
             color: hexToRgb(l.strokeColor),
           });
           page.drawLine({
@@ -287,7 +338,7 @@ async function drawAnnotation(
               x: x2 - headLen * Math.cos(angle + Math.PI / 6),
               y: y2 + headLen * Math.sin(angle + Math.PI / 6),
             },
-            thickness: l.strokeWidth,
+            thickness: l.strokeWidth / normalizedScale,
             color: hexToRgb(l.strokeColor),
           });
         }
@@ -300,9 +351,9 @@ async function drawAnnotation(
       // Draw note background
       page.drawRectangle({
         x: pdfX,
-        y: pdfY - s.height,
-        width: s.width,
-        height: s.height,
+        y: pdfY - s.height / normalizedScale,
+        width: s.width / normalizedScale,
+        height: s.height / normalizedScale,
         color: hexToRgb(s.color),
         borderColor: rgb(0.8, 0.8, 0.8),
         borderWidth: 0.5,
@@ -310,13 +361,13 @@ async function drawAnnotation(
       });
       // Draw note text
       page.drawText(s.text.substring(0, 200), {
-        x: pdfX + 5,
-        y: pdfY - 30,
-        size: 11,
+        x: pdfX + 5 / normalizedScale,
+        y: pdfY - 30 / normalizedScale,
+        size: 11 / normalizedScale,
         font: defaultFont,
         color: rgb(0.08, 0.08, 0.08),
-        maxWidth: s.width - 10,
-        lineHeight: 12,
+        maxWidth: s.width / normalizedScale - 10 / normalizedScale,
+        lineHeight: 12 / normalizedScale,
       });
       break;
     }
@@ -325,17 +376,17 @@ async function drawAnnotation(
       const st = ann as StampAnnotation;
       page.drawRectangle({
         x: pdfX,
-        y: pdfY - st.height,
-        width: st.width,
-        height: st.height,
+        y: pdfY - st.height / normalizedScale,
+        width: st.width / normalizedScale,
+        height: st.height / normalizedScale,
         borderColor: hexToRgb(st.color),
-        borderWidth: 3,
+        borderWidth: 3 / normalizedScale,
         opacity: st.opacity,
       });
       page.drawText(st.text, {
-        x: pdfX + 10,
-        y: pdfY - st.height / 2 - 8,
-        size: 20,
+        x: pdfX + 10 / normalizedScale,
+        y: pdfY - st.height / (2 * normalizedScale) - 8 / normalizedScale,
+        size: 20 / normalizedScale,
         font: boldFont,
         color: hexToRgb(st.color),
         opacity: st.opacity,
@@ -347,9 +398,9 @@ async function drawAnnotation(
       const w = ann as WhiteoutAnnotation;
       page.drawRectangle({
         x: pdfX,
-        y: pdfY - w.height,
-        width: w.width,
-        height: w.height,
+        y: pdfY - w.height / normalizedScale,
+        width: w.width / normalizedScale,
+        height: w.height / normalizedScale,
         color: rgb(1, 1, 1),
         opacity: 1,
       });
@@ -359,15 +410,15 @@ async function drawAnnotation(
     case "signature": {
       const sig = ann as SignatureAnnotation;
       try {
-        const imgBytes = await fetch(sig.dataUrl).then((r) => r.arrayBuffer());
+        const imgBytes = dataUrlToBytes(sig.dataUrl);
         const image = sig.dataUrl.includes("image/png")
           ? await pdfDoc.embedPng(imgBytes)
           : await pdfDoc.embedJpg(imgBytes);
         page.drawImage(image, {
           x: pdfX,
-          y: pdfY - sig.height,
-          width: sig.width,
-          height: sig.height,
+          y: pdfY - sig.height / normalizedScale,
+          width: sig.width / normalizedScale,
+          height: sig.height / normalizedScale,
           opacity: sig.opacity,
         });
       } catch {
@@ -379,15 +430,15 @@ async function drawAnnotation(
     case "image": {
       const img = ann as ImageAnnotation;
       try {
-        const imgBytes = await fetch(img.dataUrl).then((r) => r.arrayBuffer());
+        const imgBytes = dataUrlToBytes(img.dataUrl);
         const image = img.dataUrl.includes("image/png")
           ? await pdfDoc.embedPng(imgBytes)
           : await pdfDoc.embedJpg(imgBytes);
         page.drawImage(image, {
           x: pdfX,
-          y: pdfY - img.height,
-          width: img.width,
-          height: img.height,
+          y: pdfY - img.height / normalizedScale,
+          width: img.width / normalizedScale,
+          height: img.height / normalizedScale,
           opacity: img.opacity,
         });
       } catch {

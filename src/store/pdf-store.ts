@@ -21,6 +21,7 @@ interface PdfState extends AnnotationState {
   pageOrder: number[];
   originalPageInfos: PageInfo[];
   originalPageOrder: number[];
+  pageTexts: string[];
 
   // UI
   currentPage: number;
@@ -48,6 +49,7 @@ interface PdfState extends AnnotationState {
   setPdfData: (data: Uint8Array | null, fileName?: string) => void;
   setNumPages: (n: number) => void;
   setPageInfos: (infos: PageInfo[]) => void;
+  setPageTexts: (texts: string[]) => void;
   setPageOrder: (order: number[]) => void;
 
   // Navigation
@@ -118,6 +120,7 @@ const initialState = {
   pageOrder: [],
   originalPageInfos: [],
   originalPageOrder: [],
+  pageTexts: [],
   currentPage: 0,
   scale: 1.0,
   activeTool: "select" as ToolType,
@@ -178,6 +181,7 @@ export const usePdfStore = create<PdfState>()(
           pageInfos: infos,
           originalPageInfos: infos.map((info) => ({ ...info })),
         }),
+      setPageTexts: (texts) => set({ pageTexts: texts }),
       setPageOrder: (order) => set({ pageOrder: order, isDirty: true }),
 
       // Navigation

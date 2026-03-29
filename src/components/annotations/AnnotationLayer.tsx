@@ -45,15 +45,26 @@ interface AnnotationLayerProps {
   } | null;
 }
 
+function getAnnotationRenderScale(
+  annotation: { renderScale?: number },
+  fallbackScale: number,
+) {
+  return annotation.renderScale && annotation.renderScale > 0
+    ? annotation.renderScale
+    : fallbackScale;
+}
+
 // Render a single image annotation
 function ImageAnnotationShape({
   annotation,
+  displayScale,
   isSelected,
   onSelect,
   onTransformEnd,
   onDragEnd,
 }: {
   annotation: ImageAnnotation;
+  displayScale: number;
   isSelected: boolean;
   onSelect: () => void;
   onTransformEnd: (attrs: Partial<Annotation>) => void;
@@ -64,10 +75,10 @@ function ImageAnnotationShape({
   return (
     <KImage
       image={image}
-      x={annotation.x}
-      y={annotation.y}
-      width={annotation.width}
-      height={annotation.height}
+      x={annotation.x * displayScale}
+      y={annotation.y * displayScale}
+      width={annotation.width * displayScale}
+      height={annotation.height * displayScale}
       opacity={annotation.opacity}
       draggable={isSelected}
       onClick={onSelect}
@@ -91,12 +102,14 @@ function ImageAnnotationShape({
 // Render signature annotation
 function SignatureShape({
   annotation,
+  displayScale,
   isSelected,
   onSelect,
   onTransformEnd,
   onDragEnd,
 }: {
   annotation: SignatureAnnotation;
+  displayScale: number;
   isSelected: boolean;
   onSelect: () => void;
   onTransformEnd: (attrs: Partial<Annotation>) => void;
@@ -107,10 +120,10 @@ function SignatureShape({
   return (
     <KImage
       image={image}
-      x={annotation.x}
-      y={annotation.y}
-      width={annotation.width}
-      height={annotation.height}
+      x={annotation.x * displayScale}
+      y={annotation.y * displayScale}
+      width={annotation.width * displayScale}
+      height={annotation.height * displayScale}
       opacity={annotation.opacity}
       draggable={isSelected}
       onClick={onSelect}
@@ -135,6 +148,7 @@ export default function AnnotationLayer({
   pageIndex,
   width,
   height,
+  scale,
 }: AnnotationLayerProps) {
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -174,16 +188,16 @@ export default function AnnotationLayer({
 
   const handleDragEnd = useCallback(
     (id: string, x: number, y: number) => {
-      updateAnnotation(id, pageIndex, { x, y });
+      updateAnnotation(id, pageIndex, { x, y, renderScale: scale });
     },
-    [pageIndex, updateAnnotation],
+    [pageIndex, scale, updateAnnotation],
   );
 
   const handleTransformEnd = useCallback(
     (id: string, attrs: Partial<Annotation>) => {
-      updateAnnotation(id, pageIndex, attrs);
+      updateAnnotation(id, pageIndex, { ...attrs, renderScale: scale });
     },
-    [pageIndex, updateAnnotation],
+    [pageIndex, scale, updateAnnotation],
   );
 
   const handleStageMouseDown = useCallback(
@@ -215,6 +229,7 @@ export default function AnnotationLayer({
         rotation: 0,
         opacity: annotationOpacity,
         createdAt: Date.now(),
+        renderScale: scale,
       };
 
       switch (activeTool) {
@@ -351,6 +366,7 @@ export default function AnnotationLayer({
       fontColor,
       addAnnotation,
       setSelectedAnnotation,
+      scale,
     ],
   );
 
@@ -374,6 +390,7 @@ export default function AnnotationLayer({
         if (ann) {
           updateAnnotation(id, pageIndex, {
             points: [...ann.points, pos.x, pos.y],
+            renderScale: scale,
           });
         }
         break;
@@ -386,6 +403,7 @@ export default function AnnotationLayer({
           y: Math.min(start.y, pos.y),
           width: Math.abs(pos.x - start.x),
           height: Math.abs(pos.y - start.y),
+          renderScale: scale,
         });
         break;
       case "circle":
@@ -394,16 +412,25 @@ export default function AnnotationLayer({
           y: Math.min(start.y, pos.y),
           width: Math.abs(pos.x - start.x),
           height: Math.abs(pos.y - start.y),
+          renderScale: scale,
         });
         break;
       case "arrow":
       case "line":
         updateAnnotation(id, pageIndex, {
           points: [start.x, start.y, pos.x, pos.y],
+          renderScale: scale,
         });
         break;
     }
-  }, [isDrawing, activeTool, pageIndex, pageAnnotations, updateAnnotation]);
+  }, [
+    isDrawing,
+    activeTool,
+    pageIndex,
+    pageAnnotations,
+    updateAnnotation,
+    scale,
+  ]);
 
   const handleStageMouseUp = useCallback(() => {
     if (isDrawing) {
@@ -420,13 +447,15 @@ export default function AnnotationLayer({
       if (!stage) return;
 
       const stageContainer = stage.container();
+      const annotationScale = getAnnotationRenderScale(ann, scale);
+      const displayScale = scale / annotationScale;
       const textarea = document.createElement("textarea");
       textarea.value = ann.text;
       textarea.style.position = "absolute";
-      textarea.style.left = `${ann.x}px`;
-      textarea.style.top = `${ann.y}px`;
-      textarea.style.width = `${Math.max(ann.width, 100)}px`;
-      textarea.style.fontSize = `${ann.fontSize}px`;
+      textarea.style.left = `${ann.x * displayScale}px`;
+      textarea.style.top = `${ann.y * displayScale}px`;
+      textarea.style.width = `${Math.max(ann.width, 100) * displayScale}px`;
+      textarea.style.fontSize = `${ann.fontSize * displayScale}px`;
       textarea.style.fontFamily = ann.fontFamily;
       textarea.style.color = ann.fontColor;
       textarea.style.border = "2px solid #0066ff";
@@ -457,7 +486,7 @@ export default function AnnotationLayer({
         }
       });
     },
-    [pageIndex, updateAnnotation],
+    [pageIndex, updateAnnotation, scale],
   );
 
   // Handle sticky note editing
@@ -467,17 +496,22 @@ export default function AnnotationLayer({
       if (!stage) return;
 
       const stageContainer = stage.container();
+      const annotationScale = getAnnotationRenderScale(ann, scale);
+      const displayScale = scale / annotationScale;
       const textarea = document.createElement("textarea");
       textarea.value = ann.text;
       textarea.style.position = "absolute";
-      textarea.style.left = `${ann.x + 5}px`;
-      textarea.style.top = `${ann.y + 25}px`;
-      textarea.style.width = `${ann.width - 10}px`;
-      textarea.style.height = `${ann.height - 30}px`;
+      textarea.style.left = `${(ann.x + 5) * displayScale}px`;
+      textarea.style.top = `${(ann.y + 25) * displayScale}px`;
+      textarea.style.width = `${Math.max(20, (ann.width - 10) * displayScale)}px`;
+      textarea.style.height = `${Math.max(20, (ann.height - 30) * displayScale)}px`;
       textarea.style.fontSize = "12px";
       textarea.style.border = "none";
       textarea.style.padding = "4px";
       textarea.style.background = ann.color;
+      textarea.style.color = "#111827";
+      textarea.style.caretColor = "#111827";
+      textarea.style.fontWeight = "500";
       textarea.style.outline = "none";
       textarea.style.resize = "none";
       textarea.style.zIndex = "1000";
@@ -496,13 +530,15 @@ export default function AnnotationLayer({
         if (e.key === "Escape") finishEdit();
       });
     },
-    [pageIndex, updateAnnotation],
+    [pageIndex, updateAnnotation, scale],
   );
 
   const renderAnnotation = useCallback(
     (ann: Annotation) => {
       const isSelected = selectedAnnotationId === ann.id;
       const commonDrag = isSelected && activeTool === "select";
+      const annotationScale = getAnnotationRenderScale(ann, scale);
+      const displayScale = scale / annotationScale;
 
       switch (ann.type) {
         case "text": {
@@ -511,10 +547,10 @@ export default function AnnotationLayer({
             <Fragment key={t.id}>
               {isSelected && (
                 <Rect
-                  x={t.x - 4}
-                  y={t.y - 4}
-                  width={Math.max(t.width || 160, 120) + 8}
-                  height={t.fontSize + 12}
+                  x={t.x * displayScale - 4}
+                  y={t.y * displayScale - 4}
+                  width={Math.max((t.width || 160) * displayScale, 120) + 8}
+                  height={t.fontSize * displayScale + 12}
                   fill="rgba(37, 99, 235, 0.06)"
                   stroke="#2563eb"
                   strokeWidth={2}
@@ -526,10 +562,10 @@ export default function AnnotationLayer({
               <KText
                 key={t.id}
                 id={t.id}
-                x={t.x}
-                y={t.y}
+                x={t.x * displayScale}
+                y={t.y * displayScale}
                 text={t.text}
-                fontSize={t.fontSize}
+                fontSize={t.fontSize * displayScale}
                 fontFamily={t.fontFamily}
                 fill={t.fontColor}
                 fontStyle={
@@ -537,7 +573,7 @@ export default function AnnotationLayer({
                   "normal"
                 }
                 opacity={t.opacity}
-                width={t.width || undefined}
+                width={t.width ? t.width * displayScale : undefined}
                 draggable={commonDrag}
                 onClick={() => handleSelect(t.id)}
                 onTap={() => handleSelect(t.id)}
@@ -567,10 +603,10 @@ export default function AnnotationLayer({
             <Rect
               key={h.id}
               id={h.id}
-              x={h.x}
-              y={h.y}
-              width={h.width}
-              height={h.height}
+              x={h.x * displayScale}
+              y={h.y * displayScale}
+              width={h.width * displayScale}
+              height={h.height * displayScale}
               fill={h.color}
               opacity={h.opacity}
               draggable={commonDrag}
@@ -587,9 +623,9 @@ export default function AnnotationLayer({
             <KLine
               key={f.id}
               id={f.id}
-              points={f.points}
+              points={f.points.map((point) => point * displayScale)}
               stroke={f.strokeColor}
-              strokeWidth={f.strokeWidth}
+              strokeWidth={f.strokeWidth * displayScale}
               opacity={f.opacity}
               tension={0.5}
               lineCap="round"
@@ -608,13 +644,13 @@ export default function AnnotationLayer({
             <Rect
               key={r.id}
               id={r.id}
-              x={r.x}
-              y={r.y}
-              width={r.width}
-              height={r.height}
+              x={r.x * displayScale}
+              y={r.y * displayScale}
+              width={r.width * displayScale}
+              height={r.height * displayScale}
               fill={r.fillColor === "transparent" ? undefined : r.fillColor}
               stroke={r.strokeColor}
-              strokeWidth={r.strokeWidth}
+              strokeWidth={r.strokeWidth * displayScale}
               opacity={r.opacity}
               draggable={commonDrag}
               onClick={() => handleSelect(r.id)}
@@ -641,13 +677,13 @@ export default function AnnotationLayer({
             <Ellipse
               key={c.id}
               id={c.id}
-              x={c.x}
-              y={c.y}
-              radiusX={Math.max(1, c.width / 2)}
-              radiusY={Math.max(1, c.height / 2)}
+              x={c.x * displayScale}
+              y={c.y * displayScale}
+              radiusX={Math.max(1, (c.width * displayScale) / 2)}
+              radiusY={Math.max(1, (c.height * displayScale) / 2)}
               fill={c.fillColor === "transparent" ? undefined : c.fillColor}
               stroke={c.strokeColor}
-              strokeWidth={c.strokeWidth}
+              strokeWidth={c.strokeWidth * displayScale}
               opacity={c.opacity}
               draggable={commonDrag}
               onClick={() => handleSelect(c.id)}
@@ -674,9 +710,9 @@ export default function AnnotationLayer({
             <KArrow
               key={a.id}
               id={a.id}
-              points={a.points}
+              points={a.points.map((point) => point * displayScale)}
               stroke={a.strokeColor}
-              strokeWidth={a.strokeWidth}
+              strokeWidth={a.strokeWidth * displayScale}
               opacity={a.opacity}
               fill={a.strokeColor}
               pointerLength={10}
@@ -695,9 +731,9 @@ export default function AnnotationLayer({
             <KLine
               key={l.id}
               id={l.id}
-              points={l.points}
+              points={l.points.map((point) => point * displayScale)}
               stroke={l.strokeColor}
-              strokeWidth={l.strokeWidth}
+              strokeWidth={l.strokeWidth * displayScale}
               opacity={l.opacity}
               lineCap="round"
               draggable={commonDrag}
@@ -714,8 +750,8 @@ export default function AnnotationLayer({
             <Group
               key={s.id}
               id={s.id}
-              x={s.x}
-              y={s.y}
+              x={s.x * displayScale}
+              y={s.y * displayScale}
               draggable={commonDrag}
               onClick={() => handleSelect(s.id)}
               onTap={() => handleSelect(s.id)}
@@ -724,37 +760,42 @@ export default function AnnotationLayer({
               onDragEnd={(e) => handleDragEnd(s.id, e.target.x(), e.target.y())}
             >
               <Rect
-                x={3}
-                y={3}
-                width={s.width}
-                height={s.height}
+                x={3 * displayScale}
+                y={3 * displayScale}
+                width={s.width * displayScale}
+                height={s.height * displayScale}
                 fill="rgba(0,0,0,0.15)"
                 cornerRadius={2}
               />
               <Rect
-                width={s.width}
-                height={s.height}
+                width={s.width * displayScale}
+                height={s.height * displayScale}
                 fill={s.color}
                 cornerRadius={2}
                 stroke="#ccc"
                 strokeWidth={0.5}
               />
               <Rect
-                width={s.width}
-                height={20}
+                width={s.width * displayScale}
+                height={20 * displayScale}
                 fill={s.color}
                 cornerRadius={[2, 2, 0, 0]}
                 opacity={0.8}
               />
-              <KText x={5} y={3} text="📝" fontSize={12} />
               <KText
-                x={5}
-                y={24}
+                x={5 * displayScale}
+                y={3 * displayScale}
+                text="📝"
+                fontSize={12 * displayScale}
+              />
+              <KText
+                x={5 * displayScale}
+                y={24 * displayScale}
                 text={s.text}
-                fontSize={13}
+                fontSize={13 * displayScale}
                 fill="#111827"
-                width={s.width - 10}
-                height={s.height - 30}
+                width={(s.width - 10) * displayScale}
+                height={(s.height - 30) * displayScale}
                 wrap="word"
                 lineHeight={1.25}
                 verticalAlign="top"
@@ -769,8 +810,8 @@ export default function AnnotationLayer({
             <Group
               key={st.id}
               id={st.id}
-              x={st.x}
-              y={st.y}
+              x={st.x * displayScale}
+              y={st.y * displayScale}
               draggable={commonDrag}
               onClick={() => handleSelect(st.id)}
               onTap={() => handleSelect(st.id)}
@@ -779,19 +820,19 @@ export default function AnnotationLayer({
               }
             >
               <Rect
-                width={st.width}
-                height={st.height}
+                width={st.width * displayScale}
+                height={st.height * displayScale}
                 stroke={st.color}
-                strokeWidth={3}
+                strokeWidth={3 * displayScale}
                 cornerRadius={8}
                 dash={[6, 3]}
               />
               <KText
                 x={0}
-                y={st.height / 2 - 12}
-                width={st.width}
+                y={(st.height / 2 - 12) * displayScale}
+                width={st.width * displayScale}
                 text={st.text}
-                fontSize={24}
+                fontSize={24 * displayScale}
                 fontStyle="bold"
                 fill={st.color}
                 align="center"
@@ -807,10 +848,10 @@ export default function AnnotationLayer({
             <Rect
               key={w.id}
               id={w.id}
-              x={w.x}
-              y={w.y}
-              width={w.width}
-              height={w.height}
+              x={w.x * displayScale}
+              y={w.y * displayScale}
+              width={w.width * displayScale}
+              height={w.height * displayScale}
               fill="#ffffff"
               opacity={1}
               draggable={commonDrag}
@@ -838,6 +879,7 @@ export default function AnnotationLayer({
             <SignatureShape
               key={sig.id}
               annotation={sig}
+              displayScale={displayScale}
               isSelected={isSelected}
               onSelect={() => handleSelect(sig.id)}
               onTransformEnd={(attrs) => handleTransformEnd(sig.id, attrs)}
@@ -852,6 +894,7 @@ export default function AnnotationLayer({
             <ImageAnnotationShape
               key={img.id}
               annotation={img}
+              displayScale={displayScale}
               isSelected={isSelected}
               onSelect={() => handleSelect(img.id)}
               onTransformEnd={(attrs) => handleTransformEnd(img.id, attrs)}
@@ -872,6 +915,7 @@ export default function AnnotationLayer({
       handleTransformEnd,
       handleTextDblClick,
       handleStickyDblClick,
+      scale,
     ],
   );
 
