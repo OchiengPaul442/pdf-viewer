@@ -29,8 +29,7 @@ export default function PdfViewer({ pdfDoc }: PdfViewerProps) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const pageRefsMap = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  const { scale, pageOrder, pageInfos, currentPage, setCurrentPage } =
-    usePdfStore();
+  const { scale, pageOrder, pageInfos, setCurrentPage } = usePdfStore();
 
   // Set up IntersectionObserver for page virtualization
   useEffect(() => {

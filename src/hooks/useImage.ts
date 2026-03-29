@@ -5,7 +5,6 @@ export default function useImage(src: string): HTMLImageElement | null {
 
   useEffect(() => {
     if (!src) {
-      setImage(null);
       return;
     }
     const img = new window.Image();
@@ -13,7 +12,12 @@ export default function useImage(src: string): HTMLImageElement | null {
     img.onload = () => setImage(img);
     img.onerror = () => setImage(null);
     img.src = src;
+
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
   }, [src]);
 
-  return image;
+  return src ? image : null;
 }

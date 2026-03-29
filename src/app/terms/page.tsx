@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function TermsPage() {
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-12 text-slate-100 sm:px-10">
@@ -54,9 +56,9 @@ export default function TermsPage() {
         </section>
 
         <footer className="flex flex-wrap gap-4 border-t border-white/10 pt-6 text-sm text-slate-400">
-          <a href="/" className="text-sky-300 hover:text-sky-200">
+          <Link href="/" className="text-sky-300 hover:text-sky-200">
             Back to PaperPilot
-          </a>
+          </Link>
           <span>Last updated: March 29, 2026</span>
         </footer>
       </div>
