@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PDF Viewer
 
-## Getting Started
+An interactive PDF editor built with Next.js, React, TypeScript, pdf.js, pdf-lib, Konva, and Zustand.
 
-First, run the development server:
+## What it does
+
+- Open and preview PDFs.
+- Add text, highlights, shapes, freehand marks, sticky notes, stamps, signatures, images, and watermarks.
+- Export, print, and share edited PDFs.
+
+## Requirements
+
+- Node.js 20 or newer.
+- npm 10 or newer.
+- A browser with PDF and Web Share support for the share action.
+
+## Install
+
+```bash
+npm install
+```
+
+The `postinstall` script copies the pdf.js worker into `public/` so local development and production builds can load the worker correctly.
+
+## Run
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+If port `3000` is already in use, stop the existing process or run Next on another port:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npx next dev --port 3001
+```
 
-## Learn More
+## Validate
 
-To learn more about Next.js, take a look at the following resources:
+Run linting:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run lint
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Build production output:
 
-## Deploy on Vercel
+```bash
+npm run build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Run the production server after a build:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run start
+```
+
+## Improve the app safely
+
+- Keep edits small and verify them with `npm run lint` and `npm run build`.
+- Check export, print, and share flows after touching annotation logic.
+- When changing pdf.js behavior, confirm the worker still loads from `public/pdf.worker.min.mjs`.
+- If you modify annotation placement, verify the result at multiple zoom levels before exporting.
+- Prefer the existing store and export flow over introducing parallel state.
+
+## Troubleshooting
+
+- Blank or empty exports usually mean the edit serialization or annotation flattening flow regressed.
+- Missing page text in search usually means the text layer or the hidden search index is out of sync.
+- If the viewer fails to load a PDF worker, rerun `npm install` to refresh the worker copy step.
+
+## Learn more
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [pdf.js](https://mozilla.github.io/pdf.js/)
+- [pdf-lib](https://pdf-lib.js.org/)

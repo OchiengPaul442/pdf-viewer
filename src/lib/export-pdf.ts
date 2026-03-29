@@ -41,6 +41,21 @@ interface ExportOptions {
   scale: number;
 }
 
+interface ExportFonts {
+  helvetica: PDFFont;
+  helveticaBold: PDFFont;
+  helveticaOblique: PDFFont;
+  helveticaBoldOblique: PDFFont;
+  courier: PDFFont;
+  courierBold: PDFFont;
+  courierOblique: PDFFont;
+  courierBoldOblique: PDFFont;
+  timesRoman: PDFFont;
+  timesRomanBold: PDFFont;
+  timesRomanItalic: PDFFont;
+  timesRomanBoldItalic: PDFFont;
+}
+
 function getScaleFactor(scale: number) {
   return Number.isFinite(scale) && scale > 0 ? scale : 1;
 }
@@ -90,6 +105,34 @@ function dataUrlToBytes(dataUrl: string) {
   return new TextEncoder().encode(decodeURIComponent(payload));
 }
 
+function selectTextFont(
+  baseFont: PDFFont,
+  text: Pick<TextAnnotation, "fontWeight" | "fontStyle">,
+  fonts: ExportFonts,
+) {
+  const isBold = text.fontWeight === "bold";
+  const isItalic = text.fontStyle === "italic";
+
+  if (baseFont === fonts.timesRoman) {
+    if (isBold && isItalic) return fonts.timesRomanBoldItalic;
+    if (isBold) return fonts.timesRomanBold;
+    if (isItalic) return fonts.timesRomanItalic;
+    return fonts.timesRoman;
+  }
+
+  if (baseFont === fonts.courier) {
+    if (isBold && isItalic) return fonts.courierBoldOblique;
+    if (isBold) return fonts.courierBold;
+    if (isItalic) return fonts.courierOblique;
+    return fonts.courier;
+  }
+
+  if (isBold && isItalic) return fonts.helveticaBoldOblique;
+  if (isBold) return fonts.helveticaBold;
+  if (isItalic) return fonts.helveticaOblique;
+  return fonts.helvetica;
+}
+
 export async function exportPdf({
   pdfData,
   annotations,
@@ -102,8 +145,44 @@ export async function exportPdf({
   const fallbackScale = getScaleFactor(scale);
   const helvetica = await sourceDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await sourceDoc.embedFont(StandardFonts.HelveticaBold);
+  const helveticaOblique = await sourceDoc.embedFont(
+    StandardFonts.HelveticaOblique,
+  );
+  const helveticaBoldOblique = await sourceDoc.embedFont(
+    StandardFonts.HelveticaBoldOblique,
+  );
   const courier = await sourceDoc.embedFont(StandardFonts.Courier);
+  const courierBold = await sourceDoc.embedFont(StandardFonts.CourierBold);
+  const courierOblique = await sourceDoc.embedFont(
+    StandardFonts.CourierOblique,
+  );
+  const courierBoldOblique = await sourceDoc.embedFont(
+    StandardFonts.CourierBoldOblique,
+  );
   const timesRoman = await sourceDoc.embedFont(StandardFonts.TimesRoman);
+  const timesRomanBold = await sourceDoc.embedFont(
+    StandardFonts.TimesRomanBold,
+  );
+  const timesRomanItalic = await sourceDoc.embedFont(
+    StandardFonts.TimesRomanItalic,
+  );
+  const timesRomanBoldItalic = await sourceDoc.embedFont(
+    StandardFonts.TimesRomanBoldItalic,
+  );
+  const fonts: ExportFonts = {
+    helvetica,
+    helveticaBold,
+    helveticaOblique,
+    helveticaBoldOblique,
+    courier,
+    courierBold,
+    courierOblique,
+    courierBoldOblique,
+    timesRoman,
+    timesRomanBold,
+    timesRomanItalic,
+    timesRomanBoldItalic,
+  };
 
   const fontMap: Record<string, PDFFont> = {
     Helvetica: helvetica,
@@ -136,23 +215,11 @@ export async function exportPdf({
   const shouldReorder =
     orderedPageIndexes.length > 0 &&
     orderedPageIndexes.some((pageIdx, index) => pageIdx !== index);
-  const pdfDoc = shouldReorder ? await PDFDocument.create() : sourceDoc;
   const exportPages: Array<{ page: PDFPage; sourcePageIndex: number }> = [];
 
-  if (shouldReorder) {
-    for (const sourcePageIndex of orderedPageIndexes) {
-      if (sourcePageIndex < 0 || sourcePageIndex >= sourcePages.length) {
-        continue;
-      }
-      const [copiedPage] = await pdfDoc.copyPages(sourceDoc, [sourcePageIndex]);
-      pdfDoc.addPage(copiedPage);
-      exportPages.push({ page: copiedPage, sourcePageIndex });
-    }
-  } else {
-    sourcePages.forEach((page, sourcePageIndex) => {
-      exportPages.push({ page, sourcePageIndex });
-    });
-  }
+  sourcePages.forEach((page, sourcePageIndex) => {
+    exportPages.push({ page, sourcePageIndex });
+  });
 
   for (const { page, sourcePageIndex } of exportPages) {
     const { width: pageWidth, height: pageHeight } = page.getSize();
@@ -170,7 +237,8 @@ export async function exportPdf({
           fontMap,
           helvetica,
           helveticaBold,
-          pdfDoc,
+          fonts,
+          sourceDoc,
           fallbackScale,
         );
       } catch (error) {
@@ -184,7 +252,22 @@ export async function exportPdf({
     }
   }
 
-  return pdfDoc.save();
+  if (!shouldReorder) {
+    return sourceDoc.save();
+  }
+
+  const reorderedDoc = await PDFDocument.create();
+  for (const sourcePageIndex of orderedPageIndexes) {
+    if (sourcePageIndex < 0 || sourcePageIndex >= sourcePages.length) {
+      continue;
+    }
+    const [copiedPage] = await reorderedDoc.copyPages(sourceDoc, [
+      sourcePageIndex,
+    ]);
+    reorderedDoc.addPage(copiedPage);
+  }
+
+  return reorderedDoc.save();
 }
 
 async function drawAnnotation(
@@ -194,6 +277,7 @@ async function drawAnnotation(
   fontMap: Record<string, PDFFont>,
   defaultFont: PDFFont,
   boldFont: PDFFont,
+  fonts: ExportFonts,
   pdfDoc: PDFDocument,
   fallbackScale: number,
 ) {
@@ -204,14 +288,22 @@ async function drawAnnotation(
   switch (ann.type) {
     case "text": {
       const t = ann as TextAnnotation;
-      const font = fontMap[t.fontFamily] || defaultFont;
+      const font = selectTextFont(
+        fontMap[t.fontFamily] || defaultFont,
+        t,
+        fonts,
+      );
+      const fontSize = t.fontSize / normalizedScale;
+      const maxWidth = t.width > 0 ? t.width / normalizedScale : undefined;
       page.drawText(t.text, {
         x: pdfX,
-        y: pdfY - t.fontSize / normalizedScale,
-        size: t.fontSize / normalizedScale,
+        y: pdfY - fontSize,
+        size: fontSize,
         font,
         color: hexToRgb(t.fontColor),
         opacity: t.opacity,
+        maxWidth,
+        lineHeight: fontSize * 1.2,
       });
       break;
     }
